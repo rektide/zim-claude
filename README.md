@@ -1,15 +1,25 @@
 # zim-claude
 
-A zsh module that rotates the [Claude Code](https://docs.claude.com/en/docs/claude-code) CLI account — `~/.claude/.credentials.json` — across multiple OAuth accounts, for machines that share several Claude Pro/Max logins.
+> Some random cc QoL adjustables
+
+## Install
+
+Add to your `~/.zimrc`:
+
+```zsh
+zmodule rektide/zim-claude
+```
+
+Then `zimfw install`.
 
 ## Commands
 
-| command | action |
-|---|---|
-| `cyc` | rotate to the next account (alphabetical), saving the current one first |
-| `cyc <name>` | switch to a specific account (handle, unique prefix, or full email) |
-| `cycLs` | list accounts; `*` marks current, shows subscription tier + token expiry |
-| `cycImport` | seed the store from legacy `~/.claude/cred-*.json` plus the live credential |
+| command      | action                                                                      |
+| ------------ | --------------------------------------------------------------------------- |
+| `cyc`        | rotate to the next account (alphabetical), saving the current one first     |
+| `cyc <name>` | switch to a specific account (handle, unique prefix, or full email)         |
+| `cycLs`      | list accounts; `*` marks current, shows subscription tier + token expiry    |
+| `cycImport`  | seed the store from legacy `~/.claude/cred-*.json` plus the live credential |
 
 ## Architecture
 
@@ -28,7 +38,7 @@ No registry, no sidecar. A switch is a `cp` of one file over `~/.claude/.credent
 
 ### Why copy, not symlink
 
-Claude Code writes `.credentials.json` with an **atomic temp-file + rename**. A symlinked `.credentials.json -> cred-X.json` is *replaced by a regular file* on that write, so the freshly-rotated refresh token lands in `.credentials.json` and never reaches the backing `cred-X.json`. Cycling back then re-points at a stale, server-invalidated refresh token — the account "dies" on return. Copying removes the failure mode entirely.
+Claude Code writes `.credentials.json` with an **atomic temp-file + rename**. A symlinked `.credentials.json -> cred-X.json` is _replaced by a regular file_ on that write, so the freshly-rotated refresh token lands in `.credentials.json` and never reaches the backing `cred-X.json`. Cycling back then re-points at a stale, server-invalidated refresh token — the account "dies" on return. Copying removes the failure mode entirely.
 
 ### Current-account detection — two-prong, no marker file
 
@@ -41,7 +51,7 @@ The paths are complementary: token-match wins exactly when the email is stale, a
 
 ### Save-before-switch
 
-Every `cyc` copies the **outgoing** account's live credential back into its store file *before* overwriting, so a token Claude just refreshed is never lost. A trailing ` *` in the output marks when the saved copy actually differed (a refresh was captured).
+Every `cyc` copies the **outgoing** account's live credential back into its store file _before_ overwriting, so a token Claude just refreshed is never lost. A trailing ` *` in the output marks when the saved copy actually differed (a refresh was captured).
 
 ### Identity is implicit
 
@@ -60,4 +70,4 @@ flowchart TD
 
 ## Wiring
 
-Sourced from `~/.config/zsh/conf.d/zim-claude.conf`, a symlink to [`zim-claude.zsh`](zim-claude.zsh) — the user `conf.d` loop auto-sources `*.conf`. Override the store location with `CLAUDE_CREDS_DIR`.
+`init.zsh` (the zimfw entry) and `~/.config/zsh/conf.d/zim-claude.conf` (a symlink to [`zim-claude.zsh`](zim-claude.zsh)) both load the same rotation tooling — pick one. Override the store location with `CLAUDE_CREDS_DIR`.
