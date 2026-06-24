@@ -1,4 +1,7 @@
-_cyc_store() { print -r -- "${CLAUDE_CREDS_DIR:-$HOME/.claude/creds}" }
+_cyc_store() {
+	[[ -n "$CLAUDE_CREDS_DIR$HOME" ]] || { print -u2 "cyc: neither CLAUDE_CREDS_DIR nor \$HOME is set — can't locate credential store"; return 1; }
+	print -r -- "${CLAUDE_CREDS_DIR:-$HOME/.claude/creds}"
+}
 _cyc_creds() { print -r -- "$HOME/.claude/.credentials.json" }
 _cyc_cfg() { print -r -- "$HOME/.claude.json" }
 
@@ -79,6 +82,7 @@ cyc() {
 	emulate -L zsh
 	local req="$1" cur next star=""
 	typeset -g _cyc_save_changed=0
+	[[ -n $(_cyc_store) ]] || return 1
 	cur=$(_cyc_current)
 	_cyc_running_warn
 	if [[ -z "$cur" ]]; then
@@ -101,7 +105,7 @@ cyc() {
 	else
 		next=$(_cyc_next "$cur" "${accounts[@]}")
 	fi
-	_cyc_restore "$next"
+	_cyc_restore "$next" || return 1
 	(( ${_cyc_save_changed:-0} )) && star=" *"
 	print "$(date -Iseconds) cyc ${cur:-?} -> $next${req:+ ($req)}${star}" >> "${XDG_STATE_HOME:-$HOME/.local/state}/cyc.log"
 	print "{\"account\":\"$next\",\"from\":\"${cur:-unknown}\"}$star"
@@ -109,6 +113,7 @@ cyc() {
 
 cycLs() {
 	emulate -L zsh
+	[[ -n $(_cyc_store) ]] || return 1
 	local cur=$(_cyc_current) a exp sub expstr mark
 	for a in "${(@f)$(_cyc_accounts)}"; do
 		exp=$(jq -r '.claudeAiOauth.expiresAt // 0' "$(_cyc_store)/$a.json" 2>/dev/null)
@@ -122,6 +127,7 @@ cycLs() {
 
 cycImport() {
 	emulate -L zsh
+	[[ -n $(_cyc_store) ]] || return 1
 	local f name d count=0 cur
 	command mkdir -p "$(_cyc_store)"
 	for f in "$HOME/.claude"/cred-*.json(N); do
