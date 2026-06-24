@@ -64,7 +64,8 @@ _cyc_next() {
 }
 
 _cyc_restore() {
-	local handle="$1" src="$(_cyc_store)/$handle.json"
+	local handle="$1" src
+	src="$(_cyc_store)/$handle.json"
 	[[ -f "$src" ]] || { print -u2 "cyc: no account '$handle'"; return 1; }
 	command cp "$src" "$(_cyc_creds)"
 	command chmod 600 "$(_cyc_creds)"
