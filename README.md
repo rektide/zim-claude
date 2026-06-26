@@ -19,7 +19,7 @@ Then `zimfw install`.
 | `cyc`        | rotate to the next account (alphabetical), saving the current one first     |
 | `cyc <name>` | switch to a specific account (handle, unique prefix, or full email)         |
 | `cycLs`      | list accounts; `*` marks current, shows subscription tier + token expiry    |
-| `cycImport`  | seed the store from legacy `~/.claude/cred-*.json` plus the live credential |
+| `cycExport` | capture the live account (`credentials.claudeAiOauth` + `settings.oauthAccount`) into `creds/<email>.json` |
 
 ## Architecture
 

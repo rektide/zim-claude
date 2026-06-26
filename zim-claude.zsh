@@ -57,13 +57,24 @@ _cyc_accounts() {
 }
 
 _cyc_save_current() {
-	local handle="$1" dest
+	local handle="$1" dest creds cfg tmp
 	[[ -n "$handle" && -f "$(_cyc_creds)" ]] || return 1
 	command mkdir -p "$(_cyc_store)"
 	dest="$(_cyc_store)/$handle.json"
+	creds=$(_cyc_creds)
+	cfg=$(_cyc_cfg)
+	tmp="${dest}.tmp.$$"
 	typeset -g _cyc_save_changed=0
-	[[ -f "$dest" ]] && ! command cmp -s "$dest" "$(_cyc_creds)" && _cyc_save_changed=1
-	command cp "$(_cyc_creds)" "$dest"
+	# Capture both sections verbatim, mirroring source paths so a reader
+	# can see where each block lives:
+	#   credentials.claudeAiOauth  <-  ~/.claude/.credentials.json
+	#   settings.oauthAccount      <-  ~/.claude.json
+	jq -n --slurpfile c "$creds" --slurpfile g "$cfg" '{
+		credentials: { claudeAiOauth: $c[0].claudeAiOauth },
+		settings: { oauthAccount: $g[0].oauthAccount }
+	}' > "$tmp"
+	[[ -f "$dest" ]] && ! command cmp -s "$dest" "$tmp" && _cyc_save_changed=1
+	command mv "$tmp" "$dest"
 	command chmod 600 "$dest"
 }
 
@@ -140,7 +151,7 @@ cyc() {
 	esac
 	local -a accounts=("${(@f)$(_cyc_accounts)}")
 	if (( ${#accounts[@]} == 0 )); then
-		print -u2 "cyc: no accounts in $(_cyc_store) — run cycImport first"
+		print -u2 "cyc: no accounts in $(_cyc_store) — run cycExport first"
 		return 1
 	fi
 	if [[ -n "$req" ]]; then
@@ -169,36 +180,15 @@ cycLs() {
 	done
 }
 
-cycImport() {
+cycExport() {
 	emulate -L zsh
 	[[ -n $(_cyc_store) ]] || return 1
-	local f name d count=0 check method cur
+	local email
 	command mkdir -p "$(_cyc_store)"
-	for f in "$HOME/.claude"/cred-*.json(N); do
-		name="${${f:t}#cred-}"
-		name="${name%.json}"
-		command cp "$f" "$(_cyc_store)/$name.json"
-		command chmod 600 "$(_cyc_store)/$name.json"
-		count=$((count + 1))
-	done
-	for f in "$(_cyc_store)"/*/credentials.json(N); do
-		name="${${f:h}:t}"
-		[[ -f "$(_cyc_store)/$name.json" ]] && continue
-		command cp "$f" "$(_cyc_store)/$name.json"
-		command chmod 600 "$(_cyc_store)/$name.json"
-		count=$((count + 1))
-	done
-	check=$(_cyc_current_check)
-	method=${check%%	*}
-	cur=${check##*	}
-	if [[ "$method" == "refresh-token" ]]; then
-		_cyc_save_current "$cur"
-		print "imported $count account(s) into $(_cyc_store) (seeded current: $cur)"
-	elif [[ "$method" == "oauth-email" ]]; then
-		print "imported $count account(s) into $(_cyc_store); skipped seed (token-match failed, cached email '$cur' but live state suspect)"
-	else
-		print "imported $count account(s) into $(_cyc_store); skipped seed (no current account identified)"
-	fi
+	email=$(jq -r '.oauthAccount.emailAddress // empty' "$(_cyc_cfg)" 2>/dev/null)
+	[[ -n "$email" ]] || { print -u2 "cycExport: no oauthAccount.emailAddress in $(_cyc_cfg) — log in via claude first"; return 1; }
+	_cyc_save_current "$email" || { print -u2 "cycExport: capture failed for $email"; return 1; }
+	print "captured $email -> $(_cyc_store)/$email.json"
 }
 
 # Global alias: `--allow-skip` expands anywhere in a command line to the
