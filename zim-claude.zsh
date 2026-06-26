@@ -122,20 +122,22 @@ _cyc_running_warn() {
 
 cyc() {
 	emulate -L zsh
-	local req="$1" cur next star=""
+	local req="$1" check method cur next star=""
 	typeset -g _cyc_save_changed=0
 	[[ -n $(_cyc_store) ]] || return 1
-	cur=$(_cyc_current)
+	check=$(_cyc_current_check)
+	method=${check%%	*}
+	cur=${check##*	}
 	_cyc_running_warn
-	if [[ -z "$cur" ]]; then
-		if [[ -z "$req" ]]; then
-			print -u2 "cyc: can't identify current account; specify one explicitly"
-			return 1
-		fi
-		print -u2 "cyc: warning: current account unknown; live credentials not saved"
-	else
-		_cyc_save_current "$cur"
-	fi
+	case "$method" in
+		refresh-token)
+			_cyc_save_current "$cur" ;;
+		oauth-email)
+			print -u2 "cyc: warning: '$cur' from cached email only (token-match failed); live state suspect, not saving" ;;
+		none)
+			[[ -n "$req" ]] || { print -u2 "cyc: can't identify current account; specify one explicitly"; return 1; }
+			print -u2 "cyc: warning: current account unknown; live credentials not saved" ;;
+	esac
 	local -a accounts=("${(@f)$(_cyc_accounts)}")
 	if (( ${#accounts[@]} == 0 )); then
 		print -u2 "cyc: no accounts in $(_cyc_store) — run cycImport first"
@@ -170,7 +172,7 @@ cycLs() {
 cycImport() {
 	emulate -L zsh
 	[[ -n $(_cyc_store) ]] || return 1
-	local f name d count=0 cur
+	local f name d count=0 check method cur
 	command mkdir -p "$(_cyc_store)"
 	for f in "$HOME/.claude"/cred-*.json(N); do
 		name="${${f:t}#cred-}"
@@ -186,9 +188,17 @@ cycImport() {
 		command chmod 600 "$(_cyc_store)/$name.json"
 		count=$((count + 1))
 	done
-	cur=$(_cyc_current)
-	[[ -n "$cur" ]] && _cyc_save_current "$cur"
-	print "imported $count account(s) into $(_cyc_store) (seeded current: ${cur:-none})"
+	check=$(_cyc_current_check)
+	method=${check%%	*}
+	cur=${check##*	}
+	if [[ "$method" == "refresh-token" ]]; then
+		_cyc_save_current "$cur"
+		print "imported $count account(s) into $(_cyc_store) (seeded current: $cur)"
+	elif [[ "$method" == "oauth-email" ]]; then
+		print "imported $count account(s) into $(_cyc_store); skipped seed (token-match failed, cached email '$cur' but live state suspect)"
+	else
+		print "imported $count account(s) into $(_cyc_store); skipped seed (no current account identified)"
+	fi
 }
 
 # Global alias: `--allow-skip` expands anywhere in a command line to the
