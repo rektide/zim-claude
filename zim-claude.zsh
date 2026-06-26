@@ -18,6 +18,36 @@ _cyc_current() {
 	[[ -n "$email" ]] && print -r -- "${email%@*}"
 }
 
+# Identify the current account with explicit confidence level.
+# Prints "<method>\t<handle>" on stdout. method is one of:
+#   refresh-token  live refresh token matches a stored file (high confidence)
+#   oauth-email    token match failed; oauthAccount.emailAddress local-part
+#                  matches a stored file (lower confidence — cached identity,
+#                  may be stale; this is the failure mode that corrupts stores)
+#   none           can't identify: no refresh token, no email, or no stored
+#                  file matches. Callers should refuse destructive ops.
+# handle is the account name for refresh-token/oauth-email, empty for none.
+_cyc_current_check() {
+	local rt f stored email lp
+	rt=$(jq -r '.claudeAiOauth.refreshToken // empty' "$(_cyc_creds)" 2>/dev/null)
+	if [[ -n "$rt" ]]; then
+		for f in "$(_cyc_store)"/*.json(N); do
+			stored=$(jq -r '.claudeAiOauth.refreshToken // empty' "$f" 2>/dev/null)
+			if [[ "$stored" == "$rt" ]]; then
+				print -r -- "refresh-token	${${f:t}%.json}"
+				return
+			fi
+		done
+	fi
+	email=$(jq -r '.oauthAccount.emailAddress // empty' "$(_cyc_cfg)" 2>/dev/null)
+	[[ -n "$email" ]] && lp="${email%@*}"
+	if [[ -n "$lp" && -f "$(_cyc_store)/$lp.json" ]]; then
+		print -r -- "oauth-email	$lp"
+		return
+	fi
+	print -r -- "none	"
+}
+
 _cyc_accounts() {
 	local f
 	local -a out=()
