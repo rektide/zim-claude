@@ -190,3 +190,9 @@ cycImport() {
 	[[ -n "$cur" ]] && _cyc_save_current "$cur"
 	print "imported $count account(s) into $(_cyc_store) (seeded current: ${cur:-none})"
 }
+
+# Global alias: `--allow-skip` expands anywhere in a command line to the
+# double flag combo the claude CLI needs to actually bypass permissions.
+#   claude --allow-skip              → claude --allow-dangerously-skip-permissions --dangerously-skip-permissions
+#   claude --allow-skip --resume x   → both flags + --resume x
+alias -g -- '--allow-skip=--allow-dangerously-skip-permissions --dangerously-skip-permissions'
