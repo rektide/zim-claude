@@ -67,11 +67,23 @@ _cyc_next() {
 }
 
 _cyc_restore() {
-	local handle="$1" src
+	local handle="$1" src creds cfg tmp
 	src="$(_cyc_store)/$handle.json"
 	[[ -f "$src" ]] || { print -u2 "cyc: no account '$handle'"; return 1; }
-	command cp "$src" "$(_cyc_creds)"
-	command chmod 600 "$(_cyc_creds)"
+	creds=$(_cyc_creds)
+	cfg=$(_cyc_cfg)
+	command cp "$src" "$creds"
+	command chmod 600 "$creds"
+	# Force claude to refresh on next launch so it repopulates the cached
+	# identity in ~/.claude.json from the profile endpoint for the new
+	# account. Without this, claude sees a still-valid access token and
+	# keeps the previous account's identity cached.
+	tmp="${creds}.tmp.$$"
+	jq 'del(.claudeAiOauth.accessToken) | .claudeAiOauth.expiresAt = 0' "$creds" > "$tmp" \
+		&& command mv "$tmp" "$creds"
+	[[ -f "$cfg" ]] || return 0
+	tmp="${cfg}.tmp.$$"
+	jq 'del(.oauthAccount)' "$cfg" > "$tmp" && command mv "$tmp" "$cfg"
 }
 
 _cyc_running_warn() {
